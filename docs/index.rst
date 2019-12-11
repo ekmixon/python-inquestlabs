@@ -6,6 +6,12 @@
 Welcome to python-inquestlabs's documentation!
 ==============================================
 
+.. autoclass:: inquestlabs.inquestlabs_api
+    :members:
+
+.. autoclass:: inquestlabs.inquestlabs_exception
+    :members:
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
