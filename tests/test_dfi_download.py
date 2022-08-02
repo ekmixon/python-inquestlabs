@@ -19,8 +19,7 @@ def mock_hash_data():
 def mock_invalid_hash_response(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={'error': "Supplied 'sha256' value is not a valid hash.", 'success': False}, status_code=400)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def test_download_invalid_sha256(labs,mocker):
     mocker.patch('requests.request', side_effect=mock_invalid_hash_response)

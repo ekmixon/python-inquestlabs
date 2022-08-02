@@ -9,44 +9,37 @@ import requests_mock
 def mocked_400_response_request(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"error":400}, status_code=400)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_413_response_size_exceeded(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"success":False}, status_code=413)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_500_response_generic_failure(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"success":False}, status_code=500)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_404_response_nonexistant(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", status_code=404)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_400_response_missing_parameter(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"success":False}, status_code=400)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_429_response_ratelimit(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"success":False}, status_code=200)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def mocked_200_response_unsuccessful_request(*args, **kwargs):
     with requests_mock.Mocker() as mock_request:
         mock_request.get("http://labs_mock.com", json={"success":False}, status_code=200)
-        response = requests.get("http://labs_mock.com")
-        return response
+        return requests.get("http://labs_mock.com")
 
 def test_api_invalid_method(labs):
     with pytest.raises(Exception)as excinfo:

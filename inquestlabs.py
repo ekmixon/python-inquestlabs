@@ -99,7 +99,7 @@ class inquestlabs_api:
     """
 
     ####################################################################################################################
-    def __init__ (self, api_key=None, config=None, proxies=None, base_url=None, retries=3, verify_ssl=True, verbose=0):
+    def __init__(self, api_key=None, config=None, proxies=None, base_url=None, retries=3, verify_ssl=True, verbose=0):
         """
         Instantiate an interface to InQuest Labs. API key is optional but sourced from (in order): argument, environment
         variable, or configuration file. Proxy dictionary is a raw pass thru to python-requests, valid keys are 'http'
@@ -140,7 +140,7 @@ class inquestlabs_api:
         # if no base URL was specified, use the default.
         if self.base_url is None:
             self.base_url = "https://labs.inquest.net/api"
-            self.__VERBOSE("base_url=%s" % self.base_url, DEBUG)
+            self.__VERBOSE(f"base_url={self.base_url}", DEBUG)
 
         # if no config file was supplied, use a default path of ~/.iqlabskey.
         if self.config_file is None:
@@ -149,13 +149,11 @@ class inquestlabs_api:
         elif "~" in self.config_file:
             self.config_file = os.path.expanduser(self.config_file)
 
-        self.__VERBOSE("config_file=%s" % self.config_file, DEBUG)
+        self.__VERBOSE(f"config_file={self.config_file}", DEBUG)
 
         # if an API key was specified, note the source.
         if self.api_key:
             self.api_key_source = "supplied"
-
-        # otherwise, we don't have an API source yet, we'll check the environment and config files though.
 
         else:
             self.api_key_source = "N/A"
@@ -166,36 +164,32 @@ class inquestlabs_api:
             if self.api_key:
                 self.api_key_source = "environment"
 
-            # if we still don't have an API key, try loading one from the config file.
-            else:
+            elif os.path.exists(self.config_file) and os.path.isfile(self.config_file):
 
-                # config file format:
-                #   $ cat .iqlabskey
-                #   [inquestlabs]
-                #   apikey: deadbeefdeadbeefdeadbeefdeadbeefdeadbeef
-                if os.path.exists(self.config_file) and os.path.isfile(self.config_file):
+                config = configparser.ConfigParser()
 
-                    config = configparser.ConfigParser()
+                try:
+                    config.read(self.config_file)
+                except:
+                    raise inquestlabs_exception(f"invalid configuration file: {self.config_file}")
 
-                    try:
-                        config.read(self.config_file)
-                    except:
-                        raise inquestlabs_exception("invalid configuration file: %s" % self.config_file)
+                try:
+                    self.api_key = config.get("inquestlabs", "apikey")
+                except:
+                    raise inquestlabs_exception(
+                        f"unable to find inquestlabs.apikey in: {self.config_file}"
+                    )
 
-                    try:
-                        self.api_key = config.get("inquestlabs", "apikey")
-                    except:
-                        raise inquestlabs_exception("unable to find inquestlabs.apikey in: %s" % self.config_file)
 
                     # update the source, include the path.
-                    self.api_key_source = "config: %s" % self.config_file
+                self.api_key_source = f"config: {self.config_file}"
 
             # NOTE: if we still don't have an API key that's fine! InQuest Labs will simply work with some rate limits.
-            self.__VERBOSE("api_key=%s" % self.api_key, DEBUG)
-            self.__VERBOSE("api_key_source=%s" % self.api_key_source, INFO)
+            self.__VERBOSE(f"api_key={self.api_key}", DEBUG)
+            self.__VERBOSE(f"api_key_source={self.api_key_source}", INFO)
 
     ####################################################################################################################
-    def API (self, api, data=None, path=None, method="GET", raw=False):
+    def API(self, api, data=None, path=None, method="GET", raw=False):
         """
         Internal API wrapper.
 
@@ -216,24 +210,16 @@ class inquestlabs_api:
 
         assert method in ["GET", "POST"]
 
-        # if a file path was supplied, convert to a dictionary compatible with requests and the labs API.
-        files = None
-
-        if path:
-            files = dict(file=open(path, "rb"))
-
+        files = dict(file=open(path, "rb")) if path else None
         # initialize headers with a custom user-agent and if an API key is available, add an authorization header.
-        headers = \
-        {
-            "User-Agent" : "python-inquestlabs/%s" % __version__
-        }
+        headers = {"User-Agent": f"python-inquestlabs/{__version__}"}
 
         if self.api_key:
-            headers["Authorization"] = "Basic %s" % self.api_key
+            headers["Authorization"] = f"Basic {self.api_key}"
 
         # build the keyword arguments that will be passed to requests library.
         kwargs = \
-        {
+            {
             "data"    : data,
             "files"   : files,
             "headers" : headers,
@@ -246,7 +232,7 @@ class inquestlabs_api:
         endpoint       = self.base_url + api
         attempt        = 0
 
-        self.__VERBOSE("%s %s" % (method, endpoint), INFO)
+        self.__VERBOSE(f"{method} {endpoint}", INFO)
 
         while 1:
             try:
@@ -257,8 +243,7 @@ class inquestlabs_api:
 
             except Exception as e:
                 last_exception = e
-                self.__VERBOSE("API exception: %s" % e, INFO)
-
+                self.__VERBOSE(f"API exception: {last_exception}", INFO)
                 # 0.4, 1.6, 6.4, 25.6, ...
                 time.sleep(random.uniform(0, 4 ** attempt * 100 / 1000.0))
                 attempt += 1
@@ -299,21 +284,16 @@ class inquestlabs_api:
             # otherwise, we convert the assumed JSON response to a python dictionary.
             response_json = response.json()
 
-            # with a 200 status code, success should always be true...
             if response_json['success']:
                 return response_json['data']
 
-            # ... but let's handle corner cases where it may not be.
-            else:
-                message  = "status=200 but error communicating with %s: %s"
-                message %= endpoint, response_json.get("error", "n/a")
-                raise inquestlabs_exception(message)
+            message  = "status=200 but error communicating with %s: %s"
+            message %= endpoint, response_json.get("error", "n/a")
+            raise inquestlabs_exception(message)
 
-        # rate limit exhaustion.
         elif response.status_code == 429:
             raise inquestlabs_exception("status=429 rate limit exhausted!")
 
-        # something else went wrong.
         else:
             message  = "status=%d error communicating with %s: "
             message %= response.status_code, endpoint
@@ -387,7 +367,7 @@ class inquestlabs_api:
             return hashfunc.hexdigest()
 
     ####################################################################################################################
-    def __HASH_VALIDATE (self, hash_str, length=None):
+    def __HASH_VALIDATE(self, hash_str, length=None):
         """
         Determine if the given hash string contains valid hex chars for the specified length or entirely, if left out.
 
@@ -406,10 +386,7 @@ class inquestlabs_api:
         if length and len(hash_str) != length:
             return False
 
-        if re.match("[0-9a-fA-F]+", hash_str, re.I):
-            return True
-
-        return False
+        return bool(re.match("[0-9a-fA-F]+", hash_str, re.I))
 
     ####################################################################################################################
     def __VERBOSE (self, message, verbosity=INFO):
@@ -642,7 +619,7 @@ class inquestlabs_api:
         return filtered
 
     ####################################################################################################################
-    def dfi_search (self, category, subcategory, keyword):
+    def dfi_search(self, category, subcategory, keyword):
         """
         Search DFI category/subcategory by keyword. Valid categories include: 'ext', 'hash', and 'ioc'. Valid
         subcategories for each include: ext: 'code', 'context', 'metadata', and 'ocr'. hash: 'md5', 'sha1', 'sha256',
@@ -696,14 +673,10 @@ class inquestlabs_api:
 
         # API dance.
         if category == "ext":
-            subcategory = "ext_" + subcategory
+            subcategory = f"ext_{subcategory}"
 
-        if category == "hash":
-            data = dict(hash=keyword)
-        else:
-            data = dict(keyword=keyword)
-
-        return self.API("/dfi/search/%s/%s" % (category, subcategory), data)
+        data = dict(hash=keyword) if category == "hash" else dict(keyword=keyword)
+        return self.API(f"/dfi/search/{category}/{subcategory}", data)
 
     ####################################################################################################################
     def dfi_sources (self):
@@ -718,7 +691,7 @@ class inquestlabs_api:
         return self.API("/dfi/sources")
 
     ####################################################################################################################
-    def dfi_upload (self, path):
+    def dfi_upload(self, path):
         """
         Uploads a file to InQuest Labs for Deep File Inspection (DFI). Note that the file must be one of doc, docx, ppt,
         pptx, xls, xlsx.
@@ -734,7 +707,7 @@ class inquestlabs_api:
 
         # ensure the path exists and points to a file.
         if not os.path.exists(path) or not os.path.isfile(path):
-            raise inquestlabs_exception("invalid file path specified for upload: %s" % path)
+            raise inquestlabs_exception(f"invalid file path specified for upload: {path}")
 
         # ensure the file is an OLE (pre 2007 Office file) or ZIP (post 2007 Office file).
         with open(path, "rb") as fh:
@@ -815,7 +788,7 @@ class inquestlabs_api:
         return self.API("/iocdb/sources")
 
     ####################################################################################################################
-    def lookup (self, kind, ioc):
+    def lookup(self, kind, ioc):
         """
         Lookup information regarding IP address or Domain Name.
 
@@ -831,7 +804,7 @@ class inquestlabs_api:
         kind = kind.lower()
         assert kind in ["ip", "domain"]
 
-        return self.API("/lookup/%s" % kind, dict(indicator=ioc))
+        return self.API(f"/lookup/{kind}", dict(indicator=ioc))
 
     ####################################################################################################################
     def rate_limit_banner (self):
@@ -954,7 +927,7 @@ class inquestlabs_api:
         return self.API("/trystero/list")
 
     ####################################################################################################################
-    def trystero_list_samples (self, date):
+    def trystero_list_samples(self, date):
         """
         Retrieve the list of samples from the Trysteo project (these are samples that bypassed either Microsoft, Google,
         or both. For further information on Trystero, see https://labs.inquest.net/trystero. Example data::
@@ -995,10 +968,10 @@ class inquestlabs_api:
         :return: List of dictionaries.
         """
 
-        return self.API("/trystero/%s" % date)
+        return self.API(f"/trystero/{date}")
 
     ####################################################################################################################
-    def yara_b64re (self, regex, endian=None):
+    def yara_b64re(self, regex, endian=None):
         """
         Save time and avoid tedious manual labor by automatically converting plain-text regular expressions into their
         base64 compatible form.
@@ -1024,7 +997,10 @@ class inquestlabs_api:
             elif endian == "LITTLE":
                 data['option'] = "widen_little"
             else:
-                raise inquestlabs_exception("invalid endianess supplied to yara_b64re: %s" % endian)
+                raise inquestlabs_exception(
+                    f"invalid endianess supplied to yara_b64re: {endian}"
+                )
+
 
         # dance with the API and return results.
         return self.API("/yara/base64re", data)
@@ -1044,7 +1020,7 @@ class inquestlabs_api:
         return self.API("/yara/mixcase", dict(instring=instring))
 
     ####################################################################################################################
-    def yara_widere (self, regex, endian=None):
+    def yara_widere(self, regex, endian=None):
         """
         Save time and avoid tedious manual labor by automating converting ascii regular expressions widechar forms.
 
@@ -1067,7 +1043,10 @@ class inquestlabs_api:
             if endian in ["BIG", "LITTLE"]:
                 data['kind'] = endian
             else:
-                raise inquestlabs_exception("invalid endianess supplied to yara_b64re: %s" % endian)
+                raise inquestlabs_exception(
+                    f"invalid endianess supplied to yara_b64re: {endian}"
+                )
+
 
         # dance with the API and return results.
         return self.API("/yara/widere", data)
@@ -1095,7 +1074,7 @@ class inquestlabs_api:
 ########################################################################################################################
 ########################################################################################################################
 
-def main ():
+def main():
     args = docopt.docopt(__doc__, version=__version__)
 
     # --debug is for docopt argument parsing. useful to pipe to: egrep -v "False|None"
@@ -1113,17 +1092,14 @@ def main ():
         if args['attributes']:
             print(json.dumps(labs.dfi_attributes(args['<sha256>'], args['--filter'])))
 
-        # inquestlabs [options] dfi details <sha256> [--attributes]
         elif args['details']:
             print(json.dumps(labs.dfi_details(args['<sha256>'], args['--attributes'])))
 
-        # inquestlabs [options] dfi download <sha256> <path> [--encrypt]
         elif args['download']:
             start = time.time()
             labs.dfi_download(args['<sha256>'], args['<path>'], args['--encrypt'])
             print("saved %s as '%s' in %d seconds." % (args['<sha256>'], args['<path>'], time.time() - start))
 
-        # inquestlabs [options] dfi list
         elif args['list']:
             print(json.dumps(labs.dfi_list()))
 
@@ -1179,22 +1155,18 @@ def main ():
             # search results.
             print(json.dumps(results))
 
-        # inquestlabs [options] dfi sources
         elif args['sources']:
             print(json.dumps(labs.dfi_sources()))
 
-        # inquestlabs [options] dfi upload <path>
         elif args['upload']:
             start  = time.time()
             sha256 = labs.dfi_upload(args['<path>'])
             print("successfully uploaded %s in %d seconds." % (args['<path>'], time.time() - start))
-            print("see results at: https://labs.inquest.net/dfi/sha256/%s" % sha256)
+            print(f"see results at: https://labs.inquest.net/dfi/sha256/{sha256}")
 
-        # huh?
         else:
             raise inquestlabs_exception("dfi argument parsing fail.")
 
-    ### IOCDB ##########################################################################################################
     elif args['iocdb']:
 
         # inquestlabs [options] iocdb list
@@ -1213,7 +1185,6 @@ def main ():
         else:
             raise inquestlabs_exception("iocdb argument parsing fail.")
 
-    ### REPDB ##########################################################################################################
     elif args['repdb']:
 
         # inquestlabs [options] repdb list
@@ -1232,7 +1203,6 @@ def main ():
         else:
             raise inquestlabs_exception("repdb argument parsing fail.")
 
-    ### YARA ###########################################################################################################
     elif args['yara']:
 
         # normalize big/little endian switches.
@@ -1266,7 +1236,6 @@ def main ():
         else:
             raise inquestlabs_exception("yara argument parsing fail.")
 
-    ### IP/DOMAIN LOOKUP ###############################################################################################
     elif args['lookup']:
         if args['ip']:
             print(json.dumps(labs.lookup('ip', args['<ioc>'])))
@@ -1277,7 +1246,6 @@ def main ():
         else:
             raise inquestlabs_exception("'lookup' supports 'ip' and 'domain'.")
 
-    ### MISCELLANEOUS ##################################################################################################
     elif args['stats']:
         print(json.dumps(labs.stats()))
 
@@ -1289,11 +1257,13 @@ def main ():
                 with open(labs.config_file, "w+") as fh:
                     fh.write("[inquestlabs]\n")
                     fh.write("apikey: %s\n" % args['<apikey>'])
-                print("config file at %s initialized with API key %s" % (labs.config_file, args['<apikey>']))
-            except:
-                print("failed writing apikey to config file: %s" % labs.config_file)
+                print(
+                    f"config file at {labs.config_file} initialized with API key {args['<apikey>']}"
+                )
 
-    ### TRYSTERO PROJECT DATA ##########################################################################################
+            except:
+                print(f"failed writing apikey to config file: {labs.config_file}")
+
     elif args['trystero']:
 
         # inquestlabs [options] trystero list-days
@@ -1313,7 +1283,6 @@ def main ():
         else:
             raise inquestlabs_exception("trystero argument parsing fail.")
 
-    # huh?
     else:
         raise inquestlabs_exception("argument parsing fail.")
 

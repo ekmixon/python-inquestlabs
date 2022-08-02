@@ -8,12 +8,10 @@ import requests
 
 @pytest.fixture(scope="module")
 def labs():
-    labs = inquestlabs_api()
-    return labs
+    return inquestlabs_api()
 
 
 @pytest.fixture(scope="module")
 def labs_with_key():
-    labs_api = inquestlabs_api(api_key="mock")
-    return labs_api
+    return inquestlabs_api(api_key="mock")
 
